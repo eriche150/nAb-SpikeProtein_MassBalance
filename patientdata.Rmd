@@ -1,0 +1,563 @@
+---
+title: "young2020data"
+author: "ehe"
+date: "2024-02-02"
+output: html_document
+---
+#This R.file is for the analysis of observed patient data extracted from young, et. al 2020; subsequent graphs in this file only plot observed data, the source of which we obtain initial estimates for our model 
+#This R. file also fits a simple exp growth/decay model to the observed data, as seen with nlmixr2
+#Load in necesary packages, notable rxode2, tidyverse. 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(pkgbuild) #checks if compiler is present. Compiler is mandatory for RxODE
+library(devtools)
+pkgbuild::has_build_tools(debug = TRUE) #checks if you have a working C compiler
+library(rxode2)
+library(nlmixr2)
+```
+
+```{r compile data from external sources into R}
+patient_data_1<-tribble(
+        ~Day_of_illness, ~CTV,
+        3.002009522042911, 24.207398138734654,
+5.003493476782292, 38.069393394332785,
+6.02325892949154, 37.87231823987904,
+6.9594282652156885, 34.69148353796825,
+7.99017910509285, 37.94165949792758,
+9.00739916321441, 37.9291467897083,
+9.962859910550506, 38.014128933030946,
+10.997361858241101, 38.07669247412737,
+12.015921597724603, 33.5476134615886,
+12.964148065706217, 37.89004457652303,
+13.96529194748449, 38.04749615494904,
+14.939910138296337, 33.94437058470843,
+15.955790515055957, 38.01360757018847
+        
+)
+patient_data_2 <- tribble(
+        ~Day_of_illness, ~CTV,
+2.992572117981777, 30.14307760717742,
+9.017259696762345, 35.29020951583793,
+10.998883566823928, 32.56310324082551,
+12.967002196852379, 38.06335173027125,
+14.00609536500162, 38.183149799900605,
+14.968883926963663, 34.00957338285684,
+16.0036554183023, 37.91582746985431,
+17.023165988403502, 38.18681174962727,
+17.977716353945333, 38.09055478538359
+)
+patient_data_3 <- tribble(
+        ~Day_of_illness, ~CTV,
+11.001212447797387, 25.759743333508652,
+11.925367102249764, 20.556461368537317,
+12.970901252862724, 29.585020775259032,
+14.001886029907045, 29.578709304160313,
+14.968745790111814, 32.07594803555462,
+16.00646638825273, 33.9935833377163,
+17.044995284925232, 35.54936096355126,
+18.005927522565003, 33.59333087887235,
+19.017917284116933, 32.517751012465155,
+20.056446180789436, 34.40225109135854,
+21.02492253805739, 34.825119654972916,
+22.037855314562847, 38.116551832956404,
+22.997305671561364, 33.707989270499134
+)
+patient_data_4 <- tribble(
+        ~Day_of_illness, ~CTV,
+3.983482489712526, 31.762744536195264,
+8.031346819755786, 31.857042381932324,
+11.028939215178461, 31.11255828492537,
+13.030243733993267, 30.76766782151137,
+14.984681495976135, 38.1614524994139,
+16.04327933009122, 38.303159759306055,
+17.01646955003693, 38.17864492432729
+)
+
+patient_data_5 <-tribble(
+        ~Day_of_illness, ~CTV,
+2.9594081723081667, 24.452240892664012,
+4.008862003198027, 19.843836555962962,
+8.973336929508545, 30.570049328655465,
+11.004816306085884, 38.068532538447336,
+11.988594987188625, 32.921997414861906,
+14.005914423873465, 31.69643092669287,
+14.987400543279326, 31.007412487799733,
+15.994913980773307, 35.76142868448126,
+17.027241027221763, 38.14819699807434,
+17.980542123413027, 31.77873328233401,
+19.007205193904483, 29.90213405787544,
+20.047893347718034, 29.8994961618613,
+20.979887105785348, 38.19040333430056,
+22.020170689887685, 28.78894193990873,
+22.957423854200783, 38.035295048669184,
+24.00256227483769, 38.09913213221135
+)
+
+patient_data_6 <- tribble(
+        ~Day_of_illness, ~CTV,
+2.9820950778291966, 20.710670493086354,
+3.9263441312578884, 23.64257761544482,
+5.992410601598654, 27.71771458387686,
+7.96477913336138, 30.680928776415342,
+9.02722759781237, 32.50300026089225,
+10.97576777450568, 31.070701800156534,
+12.01196466133782, 37.22149752152361,
+12.976003365586875, 31.771458387685886,
+13.987294909549853, 38.05739629533003,
+14.956449305847707, 38.022958518132015,
+15.97352965923433, 34.309939994782155,
+17.016457719814895, 29.601878424210803,
+17.948590660496425, 38.12105400469606,
+18.997038283550694, 31.348291155752676
+)
+
+patient_data_7 <- tribble(
+        ~Day_of_illness, ~CTV,
+2.9698353434150797, 37.985376887065385,
+3.9969915925756805, 35.036557782336544,
+8.015498670391363, 32.085108621324494,
+8.973622713476054, 38.035347956446266,
+9.994600983104569, 38.064804586818155,
+11.011550135646942, 38.12266582504866
+)
+
+patient_data_8 <- tribble(
+        ~Day_of_illness, ~CTV,
+2.974414056237776, 34.073313860161576,
+4.004046298374426, 32.54966974553301,
+5.969585430760845, 30.008683982000473,
+7.006354804578537, 28.794505407752425,
+8.032351149443713, 33.89121338912134,
+8.985090897431785, 33.64227257177443,
+10.005431402096892, 31.34864871977053,
+11.044220718843182, 33.82121523117813,
+11.980531597678668, 33.228599247388225,
+13.010702491262945, 32.01705218283729,
+13.97731251402738, 33.27701902581511,
+14.979473532335117, 30.233941212073365,
+16.030382506652984, 32.548090839714746,
+16.968040014107537, 30.248677666377198,
+17.99080445028696, 31.833899107918214,
+19.03673089871429, 38.183205705113025,
+19.961460771425823, 34.759611589168706,
+20.982205264676647, 34.70698139522644,
+22.021533232870564, 38.09478697929002,
+22.958517426015582, 38.09057656377463,
+23.99609477700471, 38.118470566564035
+)
+
+patient_data_9 <- tribble(
+        ~Day_of_illness, ~CTV,
+4.038940511295029, 37.85671187596736,
+6.056975243702095, 30.599963272908525,
+7.010007203528174, 32.18237624281854,
+8.02838915635802, 34.069099399249716,
+9.075605951461695, 30.652955219182033,
+11.04499873031338, 37.74285789238962,
+12.077259135265676, 32.87861696266953,
+13.01493047817953, 32.84293921666361,
+14.984996968299294, 32.49875390225347,
+16.01321510564311, 27.690652955219182,
+17.05477272609491, 37.92334531336079,
+17.99163561548707, 31.41110732180802,
+19.02052746409896, 31.36913350297752,
+20.045107560595145, 33.30989795115297,
+20.983183130269847, 37.70350743723603,
+22.01962054508424, 34.32409034864503,
+23.049186104964214, 36.262231433143576,
+23.98820487041423, 33.87759385083554,
+25.002275071128363, 37.73603714682966,
+26.028606816921553, 33.62994831973556,
+26.980830323225938, 26.228914714446862,
+28.015785573250554, 37.74862929247881,
+29.062867626100612, 37.712426873737506,
+29.999865257746386, 37.733938455888136
+)
+
+patient_data_10 <- tribble(
+        ~Day_of_illness, ~CTV,
+8.012937133616333, 27.92946440321095,
+8.940906946971229, 32.77062771417292,
+11.978303348830941, 29.738649822345046,
+12.983895963883835, 31.325700750098697,
+13.94366956404555, 33.91867350967233,
+14.948184084630416, 37.94078168180024,
+15.995418098510882, 37.96920647453612,
+17.979650966915976, 38.04816423213581
+)
+
+patient_data_11 <- tribble(
+        ~Day_of_illness, ~CTV,
+1.9770722628327895, 24.773130280588298,
+2.961751139643406, 28.432252007927403,
+5.009872413886116, 35.1100448524043,
+5.948560947320152, 33.57150307708355,
+6.983680845898633, 33.59601543757171,
+8.026083672753757, 32.07155523104204,
+9.974401855798021, 37.7641597997288,
+11.021794837213067, 37.69323041618859,
+11.990289428964475, 37.624908730572656
+)
+
+patient_data_12 <- tribble(
+        ~Day_of_illness, ~CTV,
+3.9865954255718035, 29.545263600084017,
+5.007103278756822, 31.879857172862845,
+5.962077656959547, 30.294580970384374,
+7.018060242469691, 32.1424070573409,
+8.013519143440403, 33.206259189245955,
+8.974992709244678, 32.0526149968494,
+10.027454901470648, 33.91041797941609,
+11.047827354913968, 33.87891199327872,
+11.996437945256842, 37.66435622768326,
+13.044567345748447, 33.1889308968704,
+13.983564554430695, 37.6853602184415,
+15.013008790567845, 37.7452215921025,
+16.061408990542848, 37.833963453056086,
+17.004197391992665, 37.70373871035497
+)
+
+patient_data_13 <-tribble(
+        ~Day_of_illness, ~CTV,
+2.018932966342878, 32.339904046725074,
+5.020549684005185, 37.583959115561115,
+6.0282591558328775, 37.62046307884856,
+7.010448538941518, 37.55319148936171,
+11.007883168766618, 37.56675010429704,
+)
+
+patient_data_14 <- tribble(
+        ~Day_of_illness, ~CTV,
+1.9875869075208736, 27.949996085288515,
+3.0263738531381947, 22.706370540491164,
+3.9503396933235972, 27.85395516350445,
+4.999380932728023, 22.770049847326252,
+6.023730912092447, 23.859905524962812,
+6.993975999238071, 25.010308740245843,
+9.051850852408013, 27.566354359683693,
+9.976356392266421, 31.956572800584595,
+11.008936791644178, 31.615731920557455,
+12.058382805803358, 37.91110995119659,
+12.97438807581193, 31.27436907899888,
+14.025183339153623, 31.15483988830023,
+14.979777135782088, 37.8249862985098,
+16.01154798565034, 37.826552183104106,
+17.02591352106416, 37.78949291437221,
+19.003373122956283, 37.83072787535559
+)
+
+patient_data_15 <- tribble(
+        ~Day_of_illness, ~CTV,
+1.0032077788637446, 34.81456277645458,
+2.024618032061081, 27.998010835710733,
+2.969442564886516, 33.983301489255894,
+3.978556332439499, 32.47677127227995,
+5.950538388926479, 32.19043630748292,
+8.002982231912387, 30.973905305310545,
+8.948608709453758, 29.48883712408721,
+9.956118587574869, 31.027298662548745,
+11.014150982799956, 28.744994372758917,
+11.934382544336682, 37.63446488863298,
+12.972099006758054, 37.69152249587772,
+14.951833195499084, 34.34763263276363,
+15.932076953278365, 37.70879681733713,
+16.988371801618925, 37.59258774570105
+)
+
+patient_data_16 <- tribble(
+        ~Day_of_illness, ~CTV,
+6.971741407216985, 36.354328021213476,
+8.94237836808531, 30.36309695712673,
+9.965286108730838, 24.811362860668435,
+10.97833000095211, 31.465252435086246,
+11.920994001713797, 32.316941899236,
+12.949500142816339, 34.41256005670929,
+13.962010854041704, 34.89983984877524
+)
+
+patient_data_17 <- tribble(
+        ~Day_of_illness, ~CTV,
+0.9960043153394335, 32.782147430034755,
+1.9914625537752562, 30.90125166583919,
+2.9485622194696397, 32.413702997204005,
+3.9608023334798417, 30.5923854817215,
+4.996483797498701, 33.56450390655622,
+5.939731756369787, 30.17272465964619,
+7.955021909670889, 30.58506885468656,
+8.937427578215527, 29.412840680446315,
+9.916503509543027, 37.612166505526666,
+10.965637111919127, 37.51548250542214
+)
+
+patient_data_18 <- tribble(
+        ~Day_of_illness, ~CTV,
+1.9556203070716127, 27.97378080755113,
+2.9294183570548022, 24.66229680125852,
+3.927020060517763, 25.816465652857893,
+4.975725652807352, 22.775039328788672,
+5.941723635548582, 28.6790770844258,
+8.001210355261684, 30.225485055060304,
+8.944884007620754, 32.8106974305191,
+9.97476185139527, 30.949659150498164,
+10.988098173260115, 31.707918196119557,
+11.979244648660764, 38.12690089145254,
+13.006836265829877, 30.544834819087573,
+13.942440883111061, 30.96906135291033,
+14.978370503193993, 32.108547456738336,
+16.022638126190742, 34.00209753539591,
+16.97451529754567, 37.334556895647616,
+19.040591729239043, 34.432092291557424,
+20.98886024879525, 35.422653382275826,
+22.058276364451416, 38.04614577871001,
+22.99078785161941, 34.66491872050341,
+24.035189958534126, 38.12742527530152,
+25.060226381261906, 32.79811221814368
+)
+#Patient_ID 1, 5, 10, 15 received antiviral treatment and are not included in the analysis
+patient_data_all <- bind_rows(
+        patient_data_2 %>% mutate(Patient_ID = 2),
+        patient_data_3 %>% mutate(Patient_ID = 3),
+        patient_data_4 %>% mutate(Patient_ID = 4),
+        patient_data_6 %>% mutate(Patient_ID = 6),
+        patient_data_7 %>% mutate(Patient_ID = 7),
+        patient_data_8 %>% mutate(Patient_ID = 8),
+        patient_data_9 %>% mutate(Patient_ID = 9),
+        patient_data_11 %>% mutate(Patient_ID = 11),
+        patient_data_12 %>% mutate(Patient_ID = 12),
+        patient_data_13 %>% mutate(Patient_ID = 13),
+        patient_data_14 %>% mutate(Patient_ID = 14),
+        patient_data_16 %>% mutate(Patient_ID = 16),
+        patient_data_17 %>% mutate(Patient_ID = 17),
+        patient_data_18 %>% mutate(Patient_ID = 18)) %>%
+        #rearrange columns so that patient_ID is first column
+        select(Patient_ID, everything()
+        )
+#Round up the day of illness to the nearest whole number
+patient_data_all1 <- patient_data_all %>%
+        mutate(Day_of_illness = round(Day_of_illness))
+
+        
+```
+
+```{r Standard Curve data from Zhou, et.al}
+Ct_values <- c(30.76, 27.67, 24.56, 21.48)
+RNA_copies <- c(1.5e4, 1.5e5, 1.5e6, 1.5e7) #given RNA copies/mL for standard
+```
+
+```{r Create and use a linear model to convert CTV values to log10 RNA copies/m from RNA copies/mL}
+modelv1 <- lm(log10(RNA_copies) ~ Ct_values)
+
+patient_data_all2 <- patient_data_all1 %>%
+  mutate(log10_RNA_copies = (modelv1$coefficients[1] #y-intercept; represents log 10 RNA copies/mL when CTV = 0
+                             + modelv1$coefficients[2] #slope; represents the change in log 10 RNA copies/mL for each unit change in CTV
+                             * CTV),
+         RNA_copies_mL = 10^log10_RNA_copies,#convert log10 RNA copies/mL to RNA copies/mL, latter units feasible for analysis w info from PNAS paper, assume 1g~1mL, therefore RNA copies/g is the final unit
+         RNA_copies = RNA_copies_mL*1000) #RNA copies/g * 1000 g, which is the average weight of lungs, returns number of RNA copies; of which, assuming one RNA copy ~ 1 viral genome ~ 1 virion
+
+#Extract coefficients from linear model 
+intercept <- modelv1$coefficients[1]
+slope <- modelv1$coefficients[2]
+cat("The equation of the relationship is: log10(RNA_copies/mL) =", intercept, "+", slope, "* CTV\n")
+
+```
+
+```{r Add and then fix logRNA copies = 10^-1 g/mL for Day == 0 for each unique pt ID}
+# Step 1: Create a dataframe with the new observations for each unique Patient_ID
+new_rows <- patient_data_all2 %>% 
+  distinct(Patient_ID) %>% # Select distinct Patient_IDs
+  mutate(Day_of_illness = 0, # Set Day_of_illness to 0 for the new observations
+         CTV = NA, # Assuming you want to set CTV as NA, adjust as necessary
+         log10_RNA_copies = -1,
+         RNA_copies_mL = 0.1, #LVL = 10^(-1) pulled straight from Goncalves et al
+         RNA_copies = 100) #0.1*1000, viral conc. * mass = virion count
+# Step 2 Combine the new rows with the original dataframe
+patient_data_all3 <- bind_rows(patient_data_all2, new_rows) %>%
+  arrange(Patient_ID, Day_of_illness) %>% # Arrange by Patient_ID and Day_of_illness for readability
+        mutate(Patient_ID = as.character(Patient_ID)) #convert Patient_ID from dbl to character format
+
+```
+
+
+```{r Show contents of the holistic dataframe from Young, et al}
+head(patient_data_all3)
+str(patient_data_all3)
+```
+
+#Plot of Observed Data x Time 
+```{r Plot log10(viral_load) x Date of Illness}
+#Plot individual viral load x Date of Illness for each patients but on the same graph
+plotVL <- ggplot(patient_data_all3, aes(x = Day_of_illness, y = log10_RNA_copies)) +
+  geom_point() +  # Use geom_line() if you want to connect the points
+  labs(title = "logViral Load over Time by Patient",
+       x = "Date of Illness",
+       y = "logRNA copies/mL") +
+        geom_smooth(linetype="solid",size=0.5,alpha=0)+
+  facet_wrap(~ Patient_ID) +
+  theme_minimal()
+plotVL
+
+```
+
+#Save graph into a jpg file
+```{r}
+ggsave("viral_load_over_time.jpg", plot = plotVL, device = "jpg", width = 11, height = 4.5, dpi = 600)
+```
+
+#Calculate the mean viral load at each day of illness and plot the mean with standard deviations with all patient ID consolidated into one graph
+```{r}
+#Calculate the mean viral load at each day of illness
+mean_viral_load <- patient_data_all3 %>%
+  group_by(Day_of_illness) %>%
+  summarise(mean_viral_load = mean(log10_RNA_copies),
+            sd_viral_load = sd(log10_RNA_copies))
+
+#Plot the mean viral load at each day of illness
+plotMeanVL <- ggplot(mean_viral_load, aes(x = Day_of_illness, y = mean_viral_load)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = mean_viral_load - sd_viral_load, ymax = mean_viral_load + sd_viral_load), width = 0.2) +
+        geom_line()+
+  labs(title = "Mean Viral Load over Time",
+       x = "Day of Illness",
+       y = "logRNA copies") +
+        scale_x_continuous(breaks = seq(0, 30, by = 2)) +
+  theme_minimal()
+plotMeanVL
+
+#The only data from x = 27 - 30 is from one patient, should we omit this? 
+```
+#Save the graph into .jpg file
+```{r}
+ggsave("mean_viral_load_over_time.jpg", plot = plotMeanVL, device = "jpg", width = 11, height = 4.5, dpi = 600)
+```
+
+#Calculate initial estimates from patient_data_all3 for fitting
+```{r}
+#Determine V0 by pulling all observations under the column, RNA_copies, with Day_of_illness == 1
+V0 <- patient_data_all3 %>%
+  filter(Day_of_illness == 1) %>%
+  summarise(mean_RNA_copies = mean(RNA_copies)) 
+#3332258 copies; 3e6 copies
+
+#Determine Vmax by filtering the maximal value of RNA_copies for each Patient_ID only between the dates from 0 to 10 and then taking the mean of these maximal values
+
+Vmax <- patient_data_all3 %>%
+  group_by(Patient_ID) %>%
+        filter(Day_of_illness >= 0 & Day_of_illness <= 10) %>%
+  summarise(max_RNA_copies = max(RNA_copies)) %>%
+  summarise(mean_max_RNA_copies = mean(max_RNA_copies))
+#2923894138 copies; 2e9 copies
+
+```
+
+#Attempt to fit a Simple Exp/Decay model to the data with rxode2 and nlmxr packages
+```{r}
+#Fit a simple exponential growth/decay model to the data
+VL_expdecay <- function() {
+  ini({
+    tp <- 7                              # IE adopted from our EDA for when viral load approaches maximal value
+    tf <- 30                             # Final time
+    V0 <- 3332258                        # Initial value of V, assuming fixed for simplicity
+    Vmax <- 2923894138                   # Maximum value of V, assuming fixed for simplicity
+    eta.a ~ 0.1                          # Random effect for growth rate
+    eta.B ~ 0.1                          # Random effect for decay rate
+    add.err <- 1                         # Initial estimate for additive error
+  })
+  model({
+    a = log(Vmax / V0) / tp + eta.a;     # Growth rate calculation with random effect
+    B = log(Vmax / V0) / (tf - tp) + eta.B; # Decay rate calculation with random effect
+
+    if (0 <= t && t <= tp) {
+      d/dt(V) = a * V;                   # Growth phase
+    } else {
+      d/dt(V) = -B * V;                  # Decay phase
+    }
+
+    V ~ add(add.err)                     # Prediction equation with additive error
+  })
+}
+
+```
+
+#Attempt to fit a Simple Exp/Decay model to the data with rxode2 and nlmxr packages
+```{r}
+VL_expdecay <- function() {
+  ini({
+    tp <- 7                              # Marks end of growth phase, taken from EDA
+    tf <- 30                             # Data from Young, et. al extends to this time
+    V0 <- 3332258                        # Initial value of V, assuming fixed for simplicity, 3.3e6
+    Vmax <- 2923894138                   # Maximum value of V, assuming fixed for simplicity, 2.9e10
+    eta.a ~ 0.1                          # Random effect for growth rate
+    eta.B ~ 0.1                          # Random effect for decay rate
+    add.err <- 1                         # Initial estimate for additive error
+  })
+  model({
+    a = (log(Vmax / V0) / tp) + eta.a;     # Growth rate calculation with random effect
+    B = (log(Vmax / V0) / (tf - tp)) + eta.B; # Decay rate calculation with random effect
+
+    # Define growth phase (0 <= t <= tp) and decay phase (t > tp) using a switch-like operation
+    growthPhase = (t <= tp);
+    decayPhase = (t > tp);
+
+    d/dt(V) = growthPhase * a * V - decayPhase * B * V;  # Combined growth and decay phase
+    V(0) = V0;
+    V ~ add(add.err)                     # Prediction equation with additive error
+  })
+}
+
+```
+
+
+#Transform df patient_data_all3 into a format that can be used by nlmixr
+```{r required columns: ID, DV, TIME, where DV represents raw RNA copies value}
+patient_data_all4 <- patient_data_all3 %>%
+  mutate(ID = Patient_ID,
+         DV = RNA_copies,
+         TIME = Day_of_illness) %>%
+        select(ID, DV, TIME)
+#Remove DV values from patient ID's 3 and 6 where DV >2e10 to ensure outlier data points are removed and the output graph axes are not skewed
+patient_data_all4 <- patient_data_all4 %>%
+  filter(!(ID == 3 & DV > 2e10) & !(ID == 6 & DV > 2e10))
+
+```
+
+
+#Fit the model with nlmixr 
+install.packages("nlmixr2")
+library(nlmixr2)
+```{r}
+fit_run1 <- nlmixr2(VL_expdecay,data=patient_data_all4,est="saem")
+print(fit_run1)
+simpleplot<-plot(fit_run1)
+```
+
+#Save the plot of the model fit
+```{r}
+ggsave("fit_run_1_simplemodel.jpg", plot = simpleplot, device = "jpg", width = 11, height = 4.5, dpi = 600)
+```
+
+
+
+#Pull the data out from the model to customize the y-axes 
+```{r}
+#Extract data out from fit_run1 specific to ID = 2
+fit_run1_ID2 <- fit_run1 %>%
+  filter(ID == 2) %>%
+  select(TIME, DV, PRED) %>%
+  mutate(TIME = as.numeric(TIME),
+         DV = as.numeric(DV),
+         PRED = as.numeric(PRED))
+
+#Plot ID = 2 data where DV x Time
+plotID2 <- ggplot(fit_run1_ID2, aes(x = TIME, y = DV)) +
+  geom_point() +
+  geom_line(aes(y = PRED), color = "red") +
+  labs(title = "Viral Load over Time for Patient 2",
+       x = "Day of Illness",
+       y = "RNA copies/mL") +
+  scale_x_continuous(breaks = seq(0, 30, by = 2)) +
+  theme_minimal()
+plotID2
+
+```
+
