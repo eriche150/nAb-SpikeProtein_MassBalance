@@ -141,6 +141,7 @@ model_BAM_lungs <- function() {
 ```{r}
 bam_vd_trial_df <- model_BAM %>% 
         rxSolve(dose_bam_trial1)
+head(bam_vd_trial_df_lungs)
 ```
 
 #Applied constant of 15% for the amount of BAM in the lungs as a function of [BAM] in central cmpt
