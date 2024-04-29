@@ -1,0 +1,161 @@
+---
+title: "BAMETE2cmpt"
+author: "ehe"
+date: "2024-02-12"
+output: html_document
+---
+
+#Load in necesary packages, notable rxode2, tidyverse. 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(devtools)
+library(rxode2)
+library(nlmixr2)
+```
+
+```{r Import data}
+head(patient_data_all3)
+str(patient_data_all3)
+```
+
+#Set up two-compartment PK model for BAM & ETE
+```{r}
+ode_bam_ete <- "
+;# Derived PK parameters for BAM
+KEL = ICL/IV1;  # Elimination rate constant for BAM
+K12 = IQ/IV1;   # Rate constant for transfer from central to peripheral compartment for BAM
+K21 = IQ/IV2;   # Rate constant for transfer from peripheral to central compartment for BAM
+
+;# Derived PK parameters for ETE
+CBKEL = CBICL/CBV1;  # Elimination rate constant for ETE
+CBK12 = CBIQ/CBV1;   # Rate constant for transfer from central to peripheral compartment for ETE
+CBK21 = CBIQ/CBV2;   # Rate constant for transfer from peripheral to central compartment for ETE
+
+;# Differential equations
+d/dt(A1) = -KEL*A1 - K12*A1 + K21*A2; #A1 = BAM in plasma 
+d/dt(A2) = K12*A1 - K21*A2; #A2 = BAM in periphery
+d/dt(B1) = -CBKEL*B1 - CBK12*B1 + CBK21*B2; #B1 = ETE in plasma
+d/dt(B2) = CBK12*B1 - CBK21*B2; #B2 = ETE in periphery
+"
+```
+
+#Provide initial estimates for parameters in 2-cmpt model adapted from Chigusta 2021 
+```{r}
+theta.bam_ete =c(
+        A1 = 700, #BAM administered in 700mg
+        A2 = 0, #No BAM in periphery at t=0
+        B1 = 1400, #ETE administered in 1400mg,
+        B2 = 0, #No ETE in periphery at t=0
+        ICL = 0.231, #BAM clearance, L/d
+        IQ = 0.281, #BAM intercompartmental clearance, bloodflow between compartments
+        IV1 = 2.68, #BAM volume of distribution in plasma,L
+        IV2 = 2.68, #BAM volume of distribution in periphery, L
+        CBICL = 0.111, #ETE clearance,L/d
+        CBIQ = 0.308, #ETE intercompartmental clearance, bloodflow between compartments
+        CBV1 = 2.45, #ETE volume of distribution in plasma, L
+        CBV2 = 2.18 #ETE volume of distribution in periphery,L
+        
+)
+```
+
+#Provide dosing structure for BAM + ETE
+```{r}
+dosing_bam_ete <- et(amountUnits="mg", timeUnits="day") %>% 
+  et(dose=700, time=0.01, cmt="BAM") %>%  # Start just after t=0
+  et(dose=1400, time=0.01, cmt="ETE") %>%  
+  et(c(0.01, 1/24, 1/12, 0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8,9,10,11,12,13,14, 21, 28))  # Example of strategic time points in days
+
+```
+
+
+#Create and solve the model 
+```{r model, include=FALSE}
+model.bam_ete <- RxODE(model = ode_bam_ete, modName = "bam_ete_model")
+bam_ete_df <- rxSolve(model.bam_ete, 
+                     params = theta.bam_ete,
+                     events = dosing_bam_ete,
+                     inits = c(A1=700, A2=0, B1=1400, B2=0))
+#Dataframe simulates the amount of drug in milligrams, not conc.
+
+```
+
+#Convert columns: A1,A2,B1,B2 of amount of drug to concentration by dividing by volume of distribution corresponding to each compartment
+```{r}
+bam_ete_df_1 <- bam_ete_df %>% 
+  mutate(C_A1 = A1/2.68, C_A2 = A2/2.68, C_B1 = B1/2.45, C_B2 = B2/2.18)
+#Manually insert row for [drug] at time = 0
+bam_ete_df_2 <- rbind(data.frame(time = 0, A1 = 0, A2 = 0, B1 = 0, B2 = 0, C_A1 = 0, C_A2 = 0, C_B1 = 0, C_B2 = 0,KEL = 0, CBKEL = 0, CBK12 = 0, CBK21 = 0,K12 = 0, K21 = 0), bam_ete_df_1)
+
+```
+
+#Plot the concentration of BAM and ETE in plasma and periphery without application of conversion factor adopted from Chigusta 2021 supp.appendix
+```{r}
+bam_ete_df_2 %>% 
+  ggplot(aes(x=time)) +
+  geom_line(aes(y=C_A1, color="BAM in plasma")) +
+  geom_line(aes(y=C_A2, color="BAM in periphery")) +
+  geom_line(aes(y=C_B1, color="ETE in plasma")) +
+  geom_line(aes(y=C_B2, color="ETE in periphery")) +
+  labs(title="Concentration of BAM and ETE in plasma and periphery",
+       x="Time (days)",
+       y="Concentration (mg/L)",
+       color="Compartment") +
+  scale_color_manual(values=c("BAM in plasma"="blue", "BAM in periphery"="darkblue", "ETE in plasma"="red", "ETE in periphery"="darkred")) +
+        scale_y_log10()+
+  theme_minimal()
+
+```
+
+
+#Apply conversion factor of 15% to [nAb] in central compartment to obtain conc. in lungs, of which this factor is adopted from Chigusta 2021 supp.appendix
+```{r}
+bam_ete_df_3 <- bam_ete_df_2 %>% 
+        mutate(BAM_lung = C_A1*0.15,
+               ETE_lung = C_B1*0.15)
+#Since [lung] is now directly a function of [plasma], the curvatures for plasma and lung are similar... which is okay given Chigusta 2021 paper (supplementary slides in presentation)
+```
+
+
+#Plot the concentration of BAM and ETE in plasma and lungs
+```{r}
+pizza<-bam_ete_df_3 %>% 
+  ggplot(aes(x=time)) +
+        geom_line(aes(y=C_A1, color="BAM in plasma")) +
+        geom_line(aes(y=C_B1,color = "ETE in plasma"))+
+  geom_line(aes(y=BAM_lung, color="BAM in lungs")) +
+  geom_line(aes(y=ETE_lung, color="ETE in lungs")) +
+  labs(title="Concentration of BAM and ETE in lungs and plasma",
+       x="Time (days)",
+       y="Concentration (mg/L)",
+       color="Drug") +
+  scale_color_manual(values=c("BAM in lungs"="darkblue", "ETE in lungs"="darkred","BAM in plasma" ="blue","ETE in plasma" = "red")) +
+        scale_y_log10()+
+        scale_x_continuous(breaks=c(0,7,14,21,28))+
+  theme_minimal()
+pizza
+```
+
+#Save the plot
+```{r}
+ggsave("bam_ete_conc.jpg", plot = pizza, device = "jpg", width = 11, height = 4.5, dpi = 600)
+
+```
+
+#Receptor occupancy calculation adopted from PNAS paper, which reveals close to full R0. This is NOT the conclusion from our paper as we believe that this equation does not fit the 'binding regime' and instead, the 'titration regime' is present in this analysis
+```{r}
+# Constants
+N_Avogadro <- 6 * 10^23
+N_spike_proteins <- 30
+
+#Select columns from df only necessary to calculate R0, separated by constituent
+bam_r0 <- bam_ete_df_3 %>% 
+        select(time, C_A1, BAM_lung)
+bam_r0_1 <- bam_r0 %>% #convert C_A1 & BAM_lung from mg/L to nM
+        mutate(C_A1_nM = (C_A1*10^6)/145000, #10^3 * 10^6 = 10^9 = 1e9, nano
+               BAM_lung_nM = (BAM_lung*10^6)/145000,
+               R0_central = (C_A1_nM/(C_A1_nM + 0.071)) * 100,
+               R0_lung = (BAM_lung_nM/(BAM_lung_nM + 0.071)) * 100)
+#R0 is close to 100% because the concentration of [drug] is much higher than the Kd, which is 0.071nM
+
+```
