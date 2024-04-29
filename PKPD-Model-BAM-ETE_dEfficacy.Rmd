@@ -1,0 +1,422 @@
+---
+title: "BAM_ETE_logVD_Model"
+author: "ehe"
+date: "2024-03-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#Load in necesary packages, notable rxode2, tidyverse. 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(devtools)
+library(rxode2)
+library(nlmixr2)
+```
+
+#Model code for 2-cmpt BAM integrated into Viral Dynamics w efficacy parameter 
+```{r}
+model_BAM <- function() {
+  ini({
+    # PK parameters for BAM
+    ICL = 0.231  # BAM clearance, L/d
+    IQ = 0.281   # BAM intercompartmental clearance
+    IV1 = 2.68   # BAM volume of distribution in plasma, L
+    IV2 = 2.68   # BAM volume in periphery, L
+    
+    # Molecular weight for BAM in g/mol
+    MW_BAM = 146000
+    
+    # IC50 for BAM efficacy calculation in nM
+    IC50_BAM = 0.17
+    
+    # Initial conditions for Viral Dynamics model
+    tp = 7                   # End of growth phase
+    tf = 30                  # Time frame of interest
+    logV0 = log(3332258)     # Log initial viral load
+    logVmax = log(2923894138) # Log maximum viral load
+    eta.a ~ 0.1              # Random effect for growth rate
+    eta.B ~ 0.1              # Random effect for decay rate
+  })
+  
+  model({
+    # Convert BAM amount (in mg) to concentration in nM
+    conc_A1_nM = ((A1) / IV1) * (1/1000) * (1/ MW_BAM) * 1e9
+    
+    # PK equations for BAM
+    KEL = ICL / IV1
+    K12 = IQ / IV1
+    K21 = IQ / IV2
+    d/dt(A1) = -KEL * A1 - K12 * A1 + K21 * A2
+    d/dt(A2) = K12 * A1 - K21 * A2
+    
+    # Calculate efficacy for BAM
+    efficacy_BAM = conc_A1_nM / (conc_A1_nM + IC50_BAM)
+    
+    # Viral dynamics equations incorporating BAM efficacy
+    a = (logVmax - logV0) / tp + eta.a
+    B = (logVmax - logV0) / (tf - tp) + eta.B
+    growthPhase = (t <= tp)
+    decayPhase = (t > tp)
+    
+    d/dt(logV) = growthPhase * a * (1-efficacy_BAM) - decayPhase * B
+    logV(0)=-1
+  })
+ 
+}
+
+```
+
+
+
+#Model code for 2-cmpt BAM where [BAM] in lungs is used in efficacy parameter
+```{r}
+model_BAM_lungs <- function() {
+  ini({
+    # PK parameters for BAM
+    ICL = 0.231  # BAM clearance, L/d
+    IQ = 0.281   # BAM intercompartmental clearance
+    IV1 = 2.68   # BAM volume of distribution in plasma, L
+    IV2 = 2.68   # BAM volume in periphery, L
+    
+    # Molecular weight for BAM in g/mol
+    MW_BAM = 146000
+    
+    # IC50 for BAM efficacy calculation in nM
+    IC50_BAM = 0.17
+    
+    # Initial conditions for Viral Dynamics model
+    tp = 7                   # End of growth phase
+    tf = 30                  # Time frame of interest
+    logV0 = log(3332258)     # Log initial viral load
+    logVmax = log(2923894138) # Log maximum viral load
+    eta.a ~ 0.1              # Random effect for growth rate
+    eta.B ~ 0.1              # Random effect for decay rate
+  })
+  
+  model({
+    #Convert BAM amount (in mg) to concentration in nM
+    conc_A1_nM = ((A1) / IV1) * (1/1000) * (1/ MW_BAM) * 1e9
+    #[BAM] in lungs is a function of 15% [BAM] in plasma 
+    BAM_lungs = .15 * (conc_A1_nM) 
+    
+    # PK equations for BAM
+    KEL = ICL / IV1
+    K12 = IQ / IV1
+    K21 = IQ / IV2
+    d/dt(A1) = -KEL * A1 - K12 * A1 + K21 * A2
+    d/dt(A2) = K12 * A1 - K21 * A2
+    
+    # Calculate efficacy for BAM
+    efficacy_BAM = BAM_lungs / (BAM_lungs + IC50_BAM)
+    
+    # Viral dynamics equations incorporating BAM efficacy
+    a = (logVmax - logV0) / tp + eta.a
+    B = (logVmax - logV0) / (tf - tp) + eta.B
+    growthPhase = (t <= tp)
+    decayPhase = (t > tp)
+    
+    d/dt(logV) = growthPhase * a * (1-efficacy_BAM) - decayPhase * B
+    logV(0)=-1
+  })
+ 
+}
+
+```
+
+
+#Dosing structure for BAM 
+```{r}
+ dose_bam_trial1<- et(amountUnits="mg", timeUnits="day") %>% 
+    et(dose=700, time=0.01, cmt="A1")  %>% 
+          et(c(0.01, 1/24, 1/12, 0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8,9,10,11,12,13,14, 21, 28)) # Example of strategic time points in days
+```
+
+#Solve original model where [lung] was a function of the peripheral compartment, A2. 
+```{r}
+bam_vd_trial_df <- model_BAM %>% 
+        rxSolve(dose_bam_trial1)
+```
+
+#Applied constant of 15% for the amount of BAM in the lungs as a function of [BAM] in central cmpt
+```{r}
+bam_vd_trial_df_lungs <- model_BAM_lungs %>% 
+        rxSolve(dose_bam_trial1)
+head(bam_vd_trial_df_lungs)
+```
+
+#Plots where A1 is used for efficacy parameter calculation 
+```{r}
+bam_vd_trial_df_lungs %>% 
+  ggplot(aes(x=time, y=logV)) +
+  geom_line() +
+  labs(title="Viral Dynamics with BAM", x="Time (days)", y="Log Viral Load") +
+        scale_y_continuous(breaks=c(0,-2,-4,-6,-8,-10,-12,-14,-16))+
+  theme_minimal()
+
+#Plot conc_A1_nM over time from bam_vd_trial_df
+bam_vd_trial_df_lungs %>% 
+  ggplot(aes(x=time, y=BAM_lungs)) +
+  geom_line() +
+  labs(title="BAM Concentration in Lungs", x="Time (days)", y="Concentration (nM)") +
+        scale_y_log10()+
+  theme_minimal()
+
+```
+#Plots where A2 (as a function of A1) is used for efficacy parameter calculation 
+```{r}
+#Plot viral load over time from bam_vd_trial_df_lungs
+bam_vd_trial_df_lungs %>% 
+  ggplot(aes(x=time, y=logV)) +
+  geom_line() +
+  labs(title="Viral Load in lungs after BAM simulated to affect viral growth phase", 
+       x="Time (days)", y="Log Viral Load") +
+        scale_y_continuous(breaks=c(0,-2,-4,-6,-8,-10,-12,-14,-16))+
+        scale_x_continuous(breaks=c(0,3,7,10,14,21,28))+
+  theme_minimal()
+
+```
+#2-cmpt model of BAM where efficacy affects viral clearance instead of replication
+```{r}
+model_BAM_lungs_elim <- function() {
+  ini({
+    # PK parameters for BAM
+    ICL = 0.231  # BAM clearance, L/d
+    IQ = 0.281   # BAM intercompartmental clearance
+    IV1 = 2.68   # BAM volume of distribution in plasma, L
+    IV2 = 2.68   # BAM volume in periphery, L
+    
+    # Molecular weight for BAM in g/mol
+    MW_BAM = 146000
+    
+    # IC50 for BAM efficacy calculation in nM
+    IC50_BAM = 0.17
+    
+    # Initial conditions for Viral Dynamics model
+    tp = 7                   # End of growth phase
+    tf = 30                  # Time frame of interest
+    logV0 = log(3332258)     # Log initial viral load
+    logVmax = log(2923894138) # Log maximum viral load
+    eta.a ~ 0.1              # Random effect for growth rate
+    eta.B ~ 0.1              # Random effect for decay rate
+  })
+  
+  model({
+    #Convert BAM amount (in mg) in LUNGS to concentration in nM
+    conc_A1_nM = ((A1) / IV1) * (1/1000) * (1/ MW_BAM) * 1e9
+    #[BAM] in lungs is a function of 15% [BAM] in plasma 
+    BAM_lungs = .15 * (conc_A1_nM) 
+    
+    # PK equations for BAM
+    KEL = ICL / IV1
+    K12 = IQ / IV1
+    K21 = IQ / IV2
+    d/dt(A1) = -KEL * A1 - K12 * A1 + K21 * A2
+    d/dt(A2) = K12 * A1 - K21 * A2
+    
+    # Calculate efficacy for BAM
+    efficacy_BAM = BAM_lungs / (BAM_lungs + IC50_BAM)
+    
+    # Viral dynamics equations incorporating BAM efficacy
+    a = (logVmax - logV0) / tp + eta.a
+    B = (logVmax - logV0) / (tf - tp) + eta.B
+    growthPhase = (t <= tp)
+    decayPhase = (t > tp)
+    
+    d/dt(logV) = growthPhase * a - decayPhase * B*(1-efficacy_BAM)
+    logV(0)=-1
+  })
+ 
+}
+```
+
+
+```{r}
+bam_vd_trial_ELIM_df <- model_BAM_lungs_elim %>% 
+        rxSolve(dose_bam_trial1)
+head(bam_vd_trial_ELIM_df)
+```
+
+#Plot of BAM-2cmpt model where efficacy affects viral clearance instead of replication
+```{r}
+bam_vd_trial_ELIM_df %>% 
+  ggplot(aes(x=time, y=logV)) +
+  geom_line() +
+  labs(title="Viral Load in lungs after BAM simulated to affect viral decay phase", 
+       x="Time (days)", y="Log Viral Load") +
+        scale_y_continuous(breaks=c(0,2,2.5,3,3.5))+
+        scale_x_continuous(breaks=c(0,3,7,10,14,21,28))+
+  theme_minimal()
+```
+
+
+#2-cmpt model for ETE where [ETE] in lungs included in efficacy parameter integrated into viral dynamics model 
+```{r}
+model_ETE_lungs <- function() {
+  ini({
+    # PK parameters for ETE
+    ICL = 0.111  # ETE clearance, L/d
+    IQ = 0.308   # ETE intercompartmental clearance
+    IV1 = 2.45   # ETE volume of distribution in plasma, L
+    IV2 = 2.18   # ETE volume in periphery, L
+    
+    # Molecular weight for ETE in g/mol
+    MW_ETE = 145000
+    
+    # IC50 for ETE efficacy calculation in nM
+    IC50_ETE = 0.32
+    
+    # Initial conditions for Viral Dynamics model
+    tp = 7                   # End of growth phase
+    tf = 30                  # Time frame of interest
+    logV0 = log(3332258)     # Log initial viral load
+    logVmax = log(2923894138) # Log maximum viral load
+    eta.a ~ 0.1              # Random effect for growth rate
+    eta.B ~ 0.1              # Random effect for decay rate
+  })
+  
+  model({
+    # Convert ETE amount (in mg) in LUNGS to concentration in nM
+    conc_A1_nM_lungs = ((A1) / IV1) * (1/1000) * (1/ MW_ETE) * 1e9;
+    ETE_lungs = .15*(conc_A1_nM_lungs);
+    
+    
+    # PK equations for ETE
+    KEL = ICL / IV1
+    K12 = IQ / IV1
+    K21 = IQ / IV2
+    d/dt(A1) = -KEL * A1 - K12 * A1 + K21 * A2
+    d/dt(A2) = K12 * A1 - K21 * A2
+    
+    # Calculate efficacy for ETE
+    efficacy_ETE = ETE_lungs / (ETE_lungs + IC50_ETE)
+    
+    # Viral dynamics equations incorporating ETE efficacy
+    a = (logVmax - logV0) / tp + eta.a
+    B = (logVmax - logV0) / (tf - tp) + eta.B
+    growthPhase = (t <= tp)
+    decayPhase = (t > tp)
+    
+    d/dt(logV) = growthPhase * a * (1-efficacy_ETE) - decayPhase * B
+    logV(0)=-1
+  })
+ 
+}
+
+```
+
+#Dosing structure for ETE 
+```{r}
+dose_ete_trial1<- et(amountUnits="mg", timeUnits="day") %>% 
+    et(dose=1400, time=0.01, cmt="A1")  %>% 
+          et(c(0.01, 1/24, 1/12, 0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8,9,10,11,12,13,14, 21, 28))
+```
+
+
+```{r}
+ete_vd_trial_df_lungs <- model_ETE_lungs %>% 
+        rxSolve(dose_ete_trial1)
+```
+#Plot of logV over time for model_ETE_lungs
+```{r}
+ete_vd_trial_df_lungs %>% 
+  ggplot(aes(x=time, y=logV)) +
+  geom_line() +
+  labs(title="Viral Load in lungs after ETE simulated to affect viral growth phase", 
+       x="Time (days)", y="Log Viral Load") +
+        scale_y_continuous(breaks=c(0,-2,-4,-6,-8,-10,-12,-14,-16))+
+        scale_x_continuous(breaks=c(0,3,7,10,14,21,28))+
+  theme_minimal()
+
+```
+#Perform Model_Type Beta for ETE to obtain graphs for slide 
+```{r}
+model_ETE_lungs_elim <- function() {
+  ini({
+    # PK parameters for ETE
+    ICL = 0.111  # ETE clearance, L/d
+    IQ = 0.308   # ETE intercompartmental clearance
+    IV1 = 2.45   # ETE volume of distribution in plasma, L
+    IV2 = 2.18   # ETE volume in periphery, L
+    prop.err <- 0.1                        # Proportional error for log-transformed data
+    eta.a <- 0.1            
+    eta.B <- 0.1
+    
+    # Molecular weight for ETE in g/mol
+    MW_ETE = 145000
+    
+    # IC50 for ETE efficacy calculation in nM
+    IC50_ETE = 0.32
+    
+    # Initial conditions for Viral Dynamics model
+    tp = 7                   # End of growth phase
+    tf = 30                  # Time frame of interest
+    logV0 = log(3332258)     # Log initial viral load
+    logVmax = log(2923894138) # Log maximum viral load
+  })
+  
+  model({
+    # Convert ETE amount (in mg) in LUNGS to concentration in nM
+    conc_A1_nM_lungs = ((A1) / IV1) * (1/1000) * (1/ MW_ETE) * 1e9;
+    ETE_lungs = .15*(conc_A1_nM_lungs);
+    eta.a ~ 0.1
+    eta.B ~ 0.1
+    
+    # PK equations for ETE
+    KEL = ICL / IV1
+    K12 = IQ / IV1
+    K21 = IQ / IV2
+    d/dt(A1) = -KEL * A1 - K12 * A1 + K21 * A2
+    d/dt(A2) = K12 * A1 - K21 * A2
+    
+    # Calculate efficacy for ETE
+    efficacy_ETE = ETE_lungs / (ETE_lungs + IC50_ETE)
+    
+    # Viral dynamics equations incorporating ETE efficacy
+    a = (logVmax - logV0) / tp + eta.a
+    B = (logVmax - logV0) / (tf - tp) + eta.B
+    growthPhase = (t <= tp)
+    decayPhase = (t > tp)
+    
+    d/dt(logV) = growthPhase * a - decayPhase * B* (1+efficacy_ETE)
+    logV(0)=-1
+    logV ~ prop(prop.err)
+  })
+ 
+}
+```
+
+#Solve the model to obtain df
+```{r}
+ete_vd_trial_df_lungs_elim <- model_ETE_lungs_elim %>% 
+        rxSolve(dose_ete_trial1)
+```
+
+#Plot of logV over time for model_ETE_lungs_elim
+```{r}
+ete_vd_trial_df_lungs_elim %>% 
+  ggplot(aes(x=time, y=logV)) +
+  geom_line() +
+  labs(title="Viral Load in lungs after ETE simulated to affect viral decay phase", 
+       x="Time (days)", y="Log Viral Load") +
+         scale_y_continuous(breaks=c(0,3.6,-10,-17))+
+        scale_x_continuous(breaks=c(0,3,7,10,14,21,28))+
+  theme_minimal()
+
+```
+
+#Use nlmxr to estimate the IIV for parameters alpha and beta... or should this be applied to all parameters, including that of the 2-cmpt pk/pd immunotherapy model?
+```{r}
+#ete_model_beta_df_sim <- ete_vd_trial_df_lungs_elim %>% 
+        #mutate(DV=logV,
+               #ID = )
+ete_model_beta <- nlmixr2(model_ETE_lungs_elim, data=logpatient_data_all4,est="focei")
+print(ete_model_beta)
+```
+
+
