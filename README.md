@@ -2,8 +2,10 @@
 Project: The evaluation of dosing for immunotherapies indicated for SARS-CoV-2 infection through mass balance analysis 
 
 #Background
-Literature suggests that for an innate clearance of COVID-19 infection, the number of neutralizing antibodies must greatly exceed the number of active viral molecules present with the human body. Convalescent serum taken from patients three-weeks after complete resolution of Sx reveals there is a ratio of 1000-100,000 antibody:spike protein, and only 5% of endogenous antibodies produced specifically for spike protein are capable of neutralization. (https://doi.org/10.7554/elife.57264) 
-
+Convalescent serum taken from patients three-weeks after complete resolution of symptoms reveals there is a ratio of 1000-100,000 antibody:spike protein, and only 5% of endogenous antibodies produced specifically for spike protein are capable of neutralization. (https://doi.org/10.7554/elife.57264) This implies that an innate clearance of COVID-19 infection requires an astounding number of neutralizing antibodies relative to the number of active virions. 
+This project focuses on several monoclonal antibodies approved under emergency use authorization (EUA) to treat acute COVID-19 infection: bamlanivimab, etesivimab. The motive for this project stems from two key biological findings: 
+  1. SARS-CoV-2 virions use its spike protein to attach itself onto ACE-2 receptors found on epithelial cells that line human respiratory airways. Therefore, the lungs are the major site of viral proliferation and harbor the highest concentration of viral load. 
+  2. 
 
 ##Model Structure
 Inital estimates for model extracted from exploratory data analysis, literature.
