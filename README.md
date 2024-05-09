@@ -10,9 +10,10 @@ The PK data submitted as evidence to the FDA for the selected mAbs reviewed in t
 
 
 ##Model Structure
-Inital estimates for model extracted from exploratory data analysis, literature.
-Two-compartment monotherapy PK/PD model + viral dynamics model simulated with exponential growth/decay. 
+Inital estimates for model extracted from exploratory data analysis from data provided by Young, et. al (https://www.nejm.org/doi/10.1056/NEJMc2001737)
+Two-compartment mAb monotherapy PK/PD model + viral dynamics model; COVID-19 life cycle simulated through exponential growth/decay. 
 
 
-If this disparity between number of antibodies to spike protein is true, then we should observe a similar ratio in monoclonal_Abx:spike protein, which implies that the number of Ab molecules >>>>> # spike protein 
-Per results from clinical trials for EUA-monoclonal antibodies, there doesn't seem to be high enough concentration of therapy, or there is an observed lessened amount of Abx:SPIKE PROTEIN, not Abx:viron count. In order to explain the resolution of Sx, there must be an undiscovered additional MoA from these antibodies (which can explain resolution of Sx), or the dosing of the aforementioned mAb therapy is lower than optimal and can be improved to reduce treatment duration. 
+Hyopotheses: 
+Immunotherapy dosing is considered effective if the model output reveals the ratio between number of active drug molecules:number of virus particles aligns with the previously reported 100-100,000 metric from literature. 
+If there reveals a disparity between these ratios, and assuming patients still fully recover from symptoms, then there is an exciting explanation for this phenom such that there may be an additional/hidden mechanism-of-action exhibited by these mAbs that allow for effective viral neutralization. 
