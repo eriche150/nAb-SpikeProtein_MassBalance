@@ -22,7 +22,7 @@ placebo_VL <- logfit_run1 %>%
         slice(1) %>% 
         ungroup() %>% 
         select(TIME, PRED) %>% 
-        arrange(TIME) %>%
+        arrange(TIME) %>% 
         mutate(VL_no_mAb = (10^PRED)*1000,
                R = VL_no_mAb*30) 
 
