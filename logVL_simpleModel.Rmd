@@ -1,0 +1,86 @@
+---
+title: "VD_SimpleExpGrowthDecay_Young24Data"
+author: "ehe"
+date: "2024-02-07"
+output: html_document
+---
+
+#Transform df patient_data_all3 into a format that can be used by nlmixr
+```{r required columns: ID, DV, TIME, where DV represents raw RNA copies value}
+logpatient_data_all4 <- patient_data_all3 %>%
+  mutate(ID = Patient_ID,
+         DV = log10_RNA_copies,
+         TIME = Day_of_illness) %>%
+        select(ID, DV, TIME)
+```
+#Build the same Simple Exp Growth/Decay Model with logRNA copies/mL as DV, instead of RNA copies
+```{r}
+logVL_expdecay <- function() {
+  ini({
+    tp <- 7                                # Marks end of growth phase, taken from EDA
+    tf <- 30                               # Data from Young, et. al extends to this time
+    logV0 <- log10(3332258)                  # Log initial value of V, for simplicity
+    logVmax <- log10(2923894138)             # Log maximum value of V, for simplicity
+    eta.a ~ 0.1                            # Random effect for growth rate
+    eta.B ~ 0.1                            # Random effect for decay rate
+    prop.err <- 0.1                        # Proportional error for log-transformed data
+  })
+  model({
+    a = (logVmax - logV0) / tp + eta.a;     # Growth rate calculation with random effect
+    B = (logVmax - logV0) / (tf - tp) + eta.B; # Decay rate calculation with random effect
+
+    # Define growth phase (0 <= t <= tp) and decay phase (t > tp) using a switch-like operation
+    growthPhase = (t <= tp);
+    decayPhase = (t > tp);
+
+    d/dt(logV) = growthPhase * a - decayPhase * B;  # Combined growth and decay phase on log scale
+    logV(0) = -1;
+    logV ~ prop(prop.err)                    # Prediction equation with proportional error
+  })
+}
+
+```
+
+
+```{r}
+logfit_run1 <- nlmixr2(logVL_expdecay,data=logpatient_data_all4,est="saem")
+print(logfit_run1)
+plot(logfit_run1)
+```
+
+#Plot of Population observed and predicted log viral load x time 
+```{r}
+ppVL <- logfit_run1 %>%
+  ggplot(aes(x = TIME)) +
+  geom_smooth(aes(y = DV, color = "Observed data"), se = FALSE) +
+  geom_point(aes(y = DV, color = "Observed data"), shape = 19) +
+  geom_smooth(aes(y = PRED, color = "Predicted data"), se = FALSE) +
+  geom_point(aes(y = IPRED, color = "Predicted data"), shape = 17) +
+  scale_color_manual(
+    values = c("Observed data" = "black", "Predicted data" = "blue"),
+    labels = c("Observed data", "Predicted data")
+  ) +
+  scale_shape_manual(
+    values = c("Observed data" = 19, "Predicted data" = 17),
+    labels = c("Observed data", "Predicted data")
+  ) +
+  labs(
+    title = "Population profile of log10 viral load",
+    x = "Time (days)",
+    y = "Log10 RNA copies/mL",
+    color = NULL, # Remove legend title
+    shape = NULL  # Remove legend title
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = c(0.8, 0.7),
+    legend.background = element_rect(fill = "white", colour = "black"),
+    legend.title = element_blank()  # Hide the legend title
+  )
+
+ppVL
+
+#ggsave("pppVL.png",plot=ppVL,width=13,height=8,units="in",dpi=600)
+```
+
+
