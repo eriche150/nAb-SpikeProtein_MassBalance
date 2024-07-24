@@ -10,7 +10,7 @@ The PK data submitted as evidence to the FDA for the selected mAbs reviewed in t
 
 
 # Model Structure
-Inital estimates for model extracted from exploratory data analysis from data provided by Young, et. al (https://www.nejm.org/doi/10.1056/NEJMc2001737)
+Initial estimates for model extracted from exploratory data analysis from data provided by Young, et. al (https://www.nejm.org/doi/10.1056/NEJMc2001737)
 Two-compartment mAb monotherapy PK/PD model + viral dynamics model; COVID-19 life cycle simulated through exponential growth/decay. 
 
 
