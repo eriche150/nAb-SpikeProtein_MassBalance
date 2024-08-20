@@ -14,10 +14,10 @@ Initial estimates for model extracted from exploratory data analysis from data p
 Two-compartment mAb monotherapy PK/PD model + viral dynamics model; COVID-19 life cycle simulated through exponential growth/decay. 
 The ordinary differential equations (ODE) used to fit Young data are as follows, 
 ''' 
-model({
+
+    model({
     a = (logVmax - logV0) / tp + eta.a;     # Growth rate calculation with random effect, eta.a
     B = (logVmax - logV0) / (tf - tp) + eta.B; # Decay rate calculation with random effect, eta.b
-
     # Define growth phase (0 <= t <= tp) and decay phase (t > tp) using a switch-like operation
     growthPhase = (t <= tp);
     decayPhase = (t > tp);
@@ -25,7 +25,8 @@ model({
     d/dt(logV) = growthPhase * a - decayPhase * B;  # Combined growth and decay phase on log scale
     logV(0) = -1;
     logV ~ prop(prop.err)                    # Prediction equation with proportional error
-  })
+    })
+  
   '''
 
 
