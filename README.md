@@ -10,7 +10,7 @@ The PK data submitted as evidence to the FDA for the selected mAbs reviewed in t
 
 
 # Model Structure
-Initial estimates for model extracted from exploratory data analysis from data provided by Young, et. al (https://www.nejm.org/doi/10.1056/NEJMc2001737)
+Initial estimates for the viral dynamics model were extracted from exploratory data analysis conducted on data provided by Young, et. al (https://www.nejm.org/doi/10.1056/NEJMc2001737)
 Two-compartment mAb monotherapy PK/PD model + viral dynamics model; COVID-19 life cycle simulated through exponential growth/decay. 
 The ordinary differential equations (ODE) used to describe the viral load data per Young, et. al are as follows, 
 ```
