@@ -13,7 +13,6 @@ The PK data submitted as evidence to the FDA for the selected mAbs reviewed in t
 Initial estimates for model extracted from exploratory data analysis from data provided by Young, et. al (https://www.nejm.org/doi/10.1056/NEJMc2001737)
 Two-compartment mAb monotherapy PK/PD model + viral dynamics model; COVID-19 life cycle simulated through exponential growth/decay. 
 The ordinary differential equations (ODE) used to describe the viral load data per Young, et. al are as follows, 
-''' 
 
     model({
     a = (logVmax - logV0) / tp + eta.a;     # Growth rate calculation with random effect, eta.a
@@ -24,10 +23,9 @@ The ordinary differential equations (ODE) used to describe the viral load data p
 
     d/dt(logV) = growthPhase * a - decayPhase * B;  # Combined growth and decay phase on log scale
     logV(0) = -1;
-    logV ~ prop(prop.err)                    # Prediction equation with proportional error
+    logV ~ prop(prop.err)                   
     })
   
-  '''
 
 The dependent variable (DV) is log10 viral RNA copies/mL. 
 
@@ -39,8 +37,22 @@ The ODE used to simulate serum concentration-time profiles for immunotherapies a
     d/dt(B2) = CBK12*B1 - CBK21*B2; #B2 = ETE in periphery
 
 and the inital estimates for the PK parameters,
-
-
+'''theta.bam_ete =c(
+        A1 = 700, #BAM administered in 700mg
+        A2 = 0, #No BAM in periphery at t=0
+        B1 = 1400, #ETE administered in 1400mg,
+        B2 = 0, #No ETE in periphery at t=0
+        ICL = 0.231, #BAM clearance, L/d
+        IQ = 0.281, #BAM intercompartmental clearance, bloodflow between compartments
+        IV1 = 2.68, #BAM volume of distribution in plasma,L
+        IV2 = 2.68, #BAM volume of distribution in periphery, L
+        CBICL = 0.111, #ETE clearance,L/d
+        CBIQ = 0.308, #ETE intercompartmental clearance, bloodflow between compartments
+        CBV1 = 2.45, #ETE volume of distribution in plasma, L
+        CBV2 = 2.18 #ETE volume of distribution in periphery,L
+        
+)
+'''
 
 # Hypotheses
 Immunotherapy dosing is considered effective if the model output reveals the ratio between number of active drug molecules:number of virus particles aligns with the previously reported 100-100,000 metric from literature.   If there reveals a disparity between these ratios, and  patients still fully recover from symptoms, then there is an exciting explanation for this phenom such that there may be an additional/hidden mechanism-of-action exhibited by these mAbs that allow for effective viral neutralization. 
