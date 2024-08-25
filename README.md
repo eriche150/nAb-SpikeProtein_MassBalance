@@ -13,7 +13,7 @@ The PK data submitted as evidence to the FDA for the selected mAbs reviewed in t
 Initial estimates for model extracted from exploratory data analysis from data provided by Young, et. al (https://www.nejm.org/doi/10.1056/NEJMc2001737)
 Two-compartment mAb monotherapy PK/PD model + viral dynamics model; COVID-19 life cycle simulated through exponential growth/decay. 
 The ordinary differential equations (ODE) used to describe the viral load data per Young, et. al are as follows, 
-
+```
     model({
     a = (logVmax - logV0) / tp + eta.a;     # Growth rate calculation with random effect, eta.a
     B = (logVmax - logV0) / (tf - tp) + eta.B; # Decay rate calculation with random effect, eta.b
@@ -25,19 +25,20 @@ The ordinary differential equations (ODE) used to describe the viral load data p
     logV(0) = -1;
     logV ~ prop(prop.err)                   
     })
-  
+```
 
 The dependent variable (DV) is log10 viral RNA copies/mL. 
 
-The ODE used to simulate serum concentration-time profiles for immunotherapies are as follows, 
-
+The ODE used to simulate serum concentration-time profiles for combination immunotherapy are as follows, 
+```
     d/dt(A1) = -KEL*A1 - K12*A1 + K21*A2; #A1 = BAM in plasma
     d/dt(A2) = K12*A1 - K21*A2; #A2 = BAM in periphery
     d/dt(B1) = -CBKEL*B1 - CBK12*B1 + CBK21*B2; #B1 = ETE in plasma
     d/dt(B2) = CBK12*B1 - CBK21*B2; #B2 = ETE in periphery
-
+```
 and the inital estimates for the PK parameters,
-'''theta.bam_ete =c(
+```
+theta.bam_ete =c(
         A1 = 700, #BAM administered in 700mg
         A2 = 0, #No BAM in periphery at t=0
         B1 = 1400, #ETE administered in 1400mg,
@@ -52,7 +53,7 @@ and the inital estimates for the PK parameters,
         CBV2 = 2.18 #ETE volume of distribution in periphery,L
         
 )
-'''
+```
 
 # Hypotheses
 Immunotherapy dosing is considered effective if the model output reveals the ratio between number of active drug molecules:number of virus particles aligns with the previously reported 100-100,000 metric from literature.   If there reveals a disparity between these ratios, and  patients still fully recover from symptoms, then there is an exciting explanation for this phenom such that there may be an additional/hidden mechanism-of-action exhibited by these mAbs that allow for effective viral neutralization. 
